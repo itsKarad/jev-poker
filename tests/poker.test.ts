@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { bestRank, compareRanks, makeDeck, playNextHand, rng, shuffle } from "../lib/poker";
 import { visibleBoardAt } from "../lib/poker-visibility";
-import { blindsForHand } from "../lib/poker-blinds";
 import type { PokerDecision, PokerDecisionContext, PokerMatch } from "../lib/types";
 
 const passiveDecision = async (context: PokerDecisionContext): Promise<PokerDecision> => {
@@ -11,46 +10,39 @@ const passiveDecision = async (context: PokerDecisionContext): Promise<PokerDeci
   return { action: "fold", source: "model" };
 };
 
-test("blind levels change every six hands and continue beyond hand 54", () => {
-  const levels = [2, 3, 5, 8, 12, 18, 27, 40, 60, 90, 135];
-  levels.forEach((small, index) => {
-    for (let offset = 1; offset <= 6; offset += 1) {
-      assert.deepEqual(blindsForHand(index * 6 + offset), { small, big: small * 2 });
+for (const handNumber of [1, 7, 55, 100]) {
+  test(`hand ${handNumber} posts fixed $5/$10 blinds and uses them for minimum wagers on every street`, async () => {
+    const match: PokerMatch = {
+      id: "levels", seed: "levels", requestedHands: 100, status: "running",
+      createdAt: "", updatedAt: "", bankroll: { jev: 500, codex: 500 }, hands: [],
+    };
+    const previous = await playNextHand(match, { decideJev: passiveDecision, decideCodex: passiveDecision });
+    // Resume at different hand numbers with equal stacks to isolate blind behavior.
+    match.hands = Array.from({ length: handNumber - 1 }, (_, index) => ({ ...previous, number: index + 1 }));
+    const contexts: PokerDecisionContext[] = [];
+    const decide = async (context: PokerDecisionContext): Promise<PokerDecision> => {
+      contexts.push(context);
+      if (context.street === "preflop") return passiveDecision(context);
+      const bet = context.legalActions.find((action) => action.action === "bet");
+      return bet ? { action: "bet", amount: bet.minAmount, source: "model" } : passiveDecision(context);
+    };
+    const hand = await playNextHand(match, { decideJev: decide, decideCodex: decide });
+    assert.deepEqual(hand.blinds, { small: 5, big: 10 });
+    assert.deepEqual(contexts[0].streetContributions, handNumber % 2 ? { jev: 5, codex: 10 } : { jev: 10, codex: 5 });
+    assert.equal(contexts[0].pot, 15);
+    assert.deepEqual(contexts[0].bankroll, handNumber % 2 ? { jev: 495, codex: 490 } : { jev: 490, codex: 495 });
+    assert.equal(contexts[0].legalActions.find((action) => action.action === "raise")?.minAmount, 20);
+    for (const context of contexts) {
+      assert.deepEqual(context.blinds, { small: 5, big: 10 });
+      const bet = context.legalActions.find((action) => action.action === "bet");
+      if (bet) assert.equal(bet.minAmount, 10);
+      const raise = context.legalActions.find((action) => action.action === "raise");
+      if (raise) assert.equal(raise.minAmount, 20);
     }
+    assert.deepEqual(new Set(contexts.map((context) => context.street)), new Set(["preflop", "flop", "turn", "river"]));
+    assert.equal(hand.bankroll.jev + hand.bankroll.codex, 1000);
   });
-});
-
-test("hand seven posts increased blinds and uses them for minimum wagers on every street", async () => {
-  const match: PokerMatch = {
-    id: "levels", seed: "levels", requestedHands: 60, status: "running",
-    createdAt: "", updatedAt: "", bankroll: { jev: 500, codex: 500 }, hands: [],
-  };
-  const previous = await playNextHand(match, { decideJev: passiveDecision, decideCodex: passiveDecision });
-  // Keep equal stacks to isolate level changes from the outcome of earlier deals.
-  match.hands = Array.from({ length: 6 }, (_, index) => ({ ...previous, number: index + 1 }));
-  const contexts: PokerDecisionContext[] = [];
-  const decide = async (context: PokerDecisionContext): Promise<PokerDecision> => {
-    contexts.push(context);
-    if (context.street === "preflop") return passiveDecision(context);
-    const bet = context.legalActions.find((action) => action.action === "bet");
-    return bet ? { action: "bet", amount: bet.minAmount, source: "model" } : passiveDecision(context);
-  };
-  const hand = await playNextHand(match, { decideJev: decide, decideCodex: decide });
-  assert.deepEqual(hand.blinds, { small: 3, big: 6 });
-  assert.deepEqual(contexts[0].streetContributions, { jev: 3, codex: 6 });
-  assert.equal(contexts[0].pot, 9);
-  assert.deepEqual(contexts[0].bankroll, { jev: 497, codex: 494 });
-  assert.equal(contexts[0].legalActions.find((action) => action.action === "raise")?.minAmount, 12);
-  for (const context of contexts) {
-    assert.deepEqual(context.blinds, { small: 3, big: 6 });
-    const bet = context.legalActions.find((action) => action.action === "bet");
-    if (bet) assert.equal(bet.minAmount, 6);
-    const raise = context.legalActions.find((action) => action.action === "raise");
-    if (raise) assert.equal(raise.minAmount, 12);
-  }
-  assert.deepEqual(new Set(contexts.map((context) => context.street)), new Set(["preflop", "flop", "turn", "river"]));
-  assert.equal(hand.bankroll.jev + hand.bankroll.codex, 1000);
-});
+}
 
 test("blinds exceeding the remaining stacks run out the board without losing chips", async () => {
   const match: PokerMatch = {
@@ -145,10 +137,10 @@ test("betting rounds expose every context-valid action and apply variable sizing
   const decide = async (context: PokerDecisionContext): Promise<PokerDecision> => {
     contexts.push(context);
     const streetActions = context.actionHistory.filter((action) => action.street === context.street);
-    if (context.street === "preflop" && streetActions.length === 0) return { action: "raise", amount: 8, source: "model" };
+    if (context.street === "preflop" && streetActions.length === 0) return { action: "raise", amount: 25, source: "model" };
     if (context.street === "preflop") return { action: "call", source: "model" };
     if (context.street === "flop" && streetActions.length === 0) return { action: "check", source: "model" };
-    if (context.street === "flop" && streetActions.length === 1) return { action: "bet", amount: 5, source: "model" };
+    if (context.street === "flop" && streetActions.length === 1) return { action: "bet", amount: 15, source: "model" };
     return { action: "fold", source: "model" };
   };
 
@@ -159,10 +151,10 @@ test("betting rounds expose every context-valid action and apply variable sizing
   assert.deepEqual(contexts[2].legalActions.map(({ action }) => action), ["check", "bet", "all_in"]);
   assert.deepEqual(contexts[4].legalActions.map(({ action }) => action), ["fold", "call", "raise", "all_in"]);
   assert.deepEqual(hand.actions.map(({ action, amount }) => [action, amount]), [
-    ["raise", 6],
-    ["call", 4],
+    ["raise", 20],
+    ["call", 15],
     ["check", 0],
-    ["bet", 5],
+    ["bet", 15],
     ["fold", 0],
   ]);
   assert.equal(hand.winningHand, "Fold");
@@ -179,7 +171,7 @@ for (const [street, boardLength] of [["preflop", 0], ["flop", 3], ["turn", 4], [
       if (context.street !== street) return passiveDecision(context);
       return context.toCall > 0
         ? { action: "fold", source: "model" }
-        : { action: "bet", amount: 4, source: "model" };
+        : { action: "bet", amount: context.blinds.big, source: "model" };
     };
     const folded = await playNextHand(match, { decideJev: decide, decideCodex: decide });
     assert.equal(folded.winningHand, "Fold");
@@ -230,7 +222,7 @@ test("all-in calls preserve chips and run directly to showdown", async () => {
     status: "running",
     createdAt: now,
     updatedAt: now,
-    bankroll: { jev: 10, codex: 990 },
+    bankroll: { jev: 25, codex: 975 },
     hands: [],
   };
   const decide = async (context: PokerDecisionContext): Promise<PokerDecision> => {
@@ -240,7 +232,7 @@ test("all-in calls preserve chips and run directly to showdown", async () => {
 
   const hand = await playNextHand(match, { decideJev: decide, decideCodex: decide });
 
-  assert.deepEqual(hand.actions.map(({ action, amount }) => [action, amount]), [["all_in", 8], ["call", 6]]);
-  assert.equal(hand.pot, 20);
+  assert.deepEqual(hand.actions.map(({ action, amount }) => [action, amount]), [["all_in", 20], ["call", 15]]);
+  assert.equal(hand.pot, 50);
   assert.equal(hand.bankroll.jev + hand.bankroll.codex, 1000);
 });

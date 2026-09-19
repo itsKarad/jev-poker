@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleStop, Play, RotateCcw, Spade, Trophy } from "lucide-react";
 import type { ActionRecord, LivePokerHand, MatchSummary, PlayerId, PokerHand, PokerMatch } from "@/lib/types";
 import { visibleBoardAt } from "@/lib/poker-visibility";
-import { blindsForHand } from "@/lib/poker-blinds";
+import { BLINDS } from "@/lib/poker-blinds";
 import { readHandStream } from "@/lib/read-hand-stream";
 
 const STORAGE_KEY = "jev-poker:last-match";
@@ -308,7 +308,7 @@ export function PokerDashboard() {
   const displayedHandNumber = liveHand?.number ?? (fetching ? (match?.hands.length ?? 0) + 1 : activeHand?.number ?? match?.hands.length ?? 0);
   const displayedBlinds = activeHand && !fetching
     ? activeHand.blinds ?? { small: 1, big: 2 }
-    : blindsForHand(displayedHandNumber);
+    : BLINDS;
   const record = useMemo(() => match?.hands.slice(0, visibleHandCount).reduce((result, hand) => {
     if (hand.winner !== "tie") result[hand.winner] += 1;
     return result;

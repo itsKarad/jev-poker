@@ -20,8 +20,8 @@ test("deal and thinking arrive before the model finishes, then actions and settl
   assert.equal(deal.type, "deal");
   if (deal.type !== "deal") throw new Error("Missing deal");
   assert.deepEqual(deal.hand.board, []);
-  assert.equal(deal.hand.pot, 6);
-  assert.deepEqual(deal.hand.bankroll, { jev: 498, codex: 496 });
+  assert.equal(deal.hand.pot, 15);
+  assert.deepEqual(deal.hand.bankroll, { jev: 495, codex: 490 });
   const thinking = (await events.next()).value!;
   assert.equal(thinking.type, "thinking");
   if (thinking.type !== "thinking") throw new Error("Missing thinking");

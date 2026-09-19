@@ -1,6 +1,6 @@
 import type { ActionRecord, HandProgressEvent, LegalAction, LivePokerHand, PlayerId, PokerDecision, PokerDecisionContext, PokerHand, PokerMatch, Winner } from "./types";
 import { revealedBoard } from "./poker-visibility";
-import { blindsForHand } from "./poker-blinds";
+import { BLINDS } from "./poker-blinds";
 
 export const RANKS = "23456789TJQKA";
 export const SUITS = "cdhs";
@@ -133,7 +133,7 @@ export async function playNextHand(
 ): Promise<PokerHand> {
   signal?.throwIfAborted();
   const number = match.hands.length + 1;
-  const blinds = blindsForHand(number);
+  const blinds = { ...BLINDS };
   const random = rng(`${match.seed}:${number}`);
   const deck = shuffle(makeDeck(), random);
   const holeCards = { jev: [deck[0], deck[2]], codex: [deck[1], deck[3]] };

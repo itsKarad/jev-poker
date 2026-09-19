@@ -46,7 +46,7 @@ The table streams the deal and each action as it happens. The active agent has a
 
 ## Persistence
 
-Blinds start at $2/$4 and rise every six hands: $3/$6, $5/$10, $8/$16, $12/$24, $18/$36, $27/$54, $40/$80, then $60/$120 for hands 49–54. Later levels increase the small blind by 50%, rounded to a whole chip, with the big blind twice that amount. Minimum bets and raises follow the current big blind. Blind payments never exceed a player's remaining stack. Resumed matches use the schedule for their next hand; older saved hands retain their original $1/$2 display.
+Blinds stay at $5/$10 for every hand, including resumed matches. Minimum bets are $10, and raises follow the big blind and previous raise size. Blind payments never exceed a player's remaining stack. Previously saved hands retain their recorded blinds when replayed.
 
 The app saves up to 20 matches in the browser after every hand. Each saved hand includes Jev's two cards, Codex's two cards, all five board cards, the action log, result, pot, and bankroll. Use the download button beside the match picker to export the current match as a JSON file.
 

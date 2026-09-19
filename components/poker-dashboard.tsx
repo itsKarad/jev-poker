@@ -340,7 +340,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
 
   const viewedHand = viewedHandId ? match?.hands.find((hand) => hand.id === viewedHandId) ?? null : null;
   const displayedLiveHand = viewedHand ? null : liveHand;
-  const displayedHand = displayedLiveHand ?? viewedHand ?? activeHand;
+  const displayedHand = viewedHand ?? activeHand;
   const currentAction = displayedLiveHand ? displayedLiveHand.actions.at(-1) ?? null : activeHand?.actions[actionIndex] ?? null;
   const handPosition = activeHand && match ? match.hands.findIndex((hand) => hand.id === activeHand.id) : -1;
   const previousBankroll = handPosition > 0 ? match?.hands[handPosition - 1].bankroll : { jev: 500, codex: 500 };
@@ -360,7 +360,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
     return result;
   }, { jev: 0, codex: 0 }) ?? { jev: 0, codex: 0 }, [match, visibleHandCount]);
   const isLive = running || fetching;
-  const tableHand = displayedHand;
+  const tableHand = displayedLiveHand ?? displayedHand;
   const displayThinking = viewedHand ? null : thinking;
 
   return (

@@ -161,4 +161,11 @@ button { cursor: pointer; }
 .live-actions .reasoning-line { color: #959e9a; font-size: 11px; line-height: 1.6; padding: 7px 0 4px; }
 .reasoning-line > span { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .reasoning-line small { display: block; color: #7f8b85; font-size: 10px; margin-bottom: 3px; }
+.reasoning-markdown { display: block; }
+.reasoning-markdown p { margin: 0 0 5px; }
+.reasoning-markdown p:last-child { margin-bottom: 0; }
+.reasoning-markdown h1, .reasoning-markdown h2, .reasoning-markdown h3, .reasoning-markdown h4 { margin: 0 0 5px; color: #b3bcb7; font: 700 11px/1.4 ui-sans-serif, sans-serif; }
+.reasoning-markdown ul { margin: 0 0 5px; padding-left: 16px; }
+.reasoning-markdown code { padding: 1px 4px; color: #c7d3cc; background: rgba(255,255,255,.07); border-radius: 3px; font-size: .95em; }
+.reasoning-markdown a { color: #b8c9c0; text-decoration: underline; }
 .live-actions .reasoning-line time { color: #959e9a; }

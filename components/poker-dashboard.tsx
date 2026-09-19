@@ -7,6 +7,7 @@ import { visibleBoardAt } from "@/lib/poker-visibility";
 import type { PlayerModel, PlayerModels } from "@/lib/player-models";
 import { BLINDS } from "@/lib/poker-blinds";
 import { readHandStream } from "@/lib/read-hand-stream";
+import { markdownToHtml } from "@/lib/markdown";
 
 const STORAGE_KEY = "jev-poker:last-match";
 const MATCHES_KEY = "jev-poker:matches";
@@ -83,7 +84,7 @@ function ReasoningLine({ street, actor, summary, interrupted = false }: {
   street: ActionRecord["street"]; actor: PlayerId; summary: ReasoningSummary; interrupted?: boolean;
 }) {
   return <li className="reasoning-line">
-    <span><small>{street} · {actor === "codex" ? "Codex" : "Jev"} reasoning summary{interrupted ? " · interrupted" : ""}</small>{summary.text}</span>
+    <span><small>{street} · {actor === "codex" ? "Codex:" : "Jev:"}{interrupted ? " interrupted" : ""}</small><span className="reasoning-markdown" dangerouslySetInnerHTML={{ __html: markdownToHtml(summary.text) }} /></span>
     <time>{(summary.elapsedMs / 1000).toFixed(1)}s</time>
   </li>;
 }

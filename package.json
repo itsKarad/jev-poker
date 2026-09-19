@@ -1,0 +1,25 @@
+{
+  "name": "jev-codex-poker",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^0.475.0",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["check", "bet", "call", "raise", "fold", "all_in"]
+    },
+    "amount": {
+      "type": ["integer", "null"],
+      "minimum": 1
+    }
+  },
+  "required": ["action", "amount"],
+  "additionalProperties": false
+}

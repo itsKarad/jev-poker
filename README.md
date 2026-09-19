@@ -53,6 +53,8 @@ Codex receives the same game state in a prompt and returns JSON under [`codex-ac
 
 When the Codex CLI emits public reasoning summaries, the app streams them in muted gray before the matching action, with elapsed decision time. These summaries stay with that action in saved history and replay. Some models or turns may emit none; the app does not expose a full private thinking trace. Summaries are excluded from both players' prompts because they can mention private cards. Interrupted decisions are labeled and never attached to a later action.
 
+During a live match, click any completed hand in the hand ribbon to inspect it while the next hand continues in the background. The `Current hand` button returns the table to the active hand.
+
 Small gray labels above the logos show the configured models and Codex reasoning effort. New hands retain these settings for replay; old hands without metadata show "Model not recorded."
 
 The engine validates either response before it changes the hand. An unavailable service, malformed response, or illegal action stops the match with an error. There is no pretend opponent waiting in the wings.

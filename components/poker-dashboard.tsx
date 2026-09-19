@@ -159,6 +159,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
   const [replaying, setReplaying] = useState(false);
   const [activeHand, setActiveHand] = useState<PokerHand | null>(null);
   const [actionIndex, setActionIndex] = useState(-1);
+  const [viewedHandId, setViewedHandId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const actionLog = useRef<HTMLOListElement>(null);
   useEffect(() => {
@@ -180,6 +181,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
     const stored = readStoredMatches().find((item) => item.id === id);
     if (!stored) return;
     setMatch(stored);
+    setViewedHandId(null);
     setActiveHand(stored.hands.at(-1) ?? null);
     setActionIndex((stored.hands.at(-1)?.actions.length ?? 0) - 1);
     localStorage.setItem(STORAGE_KEY, id);
@@ -206,6 +208,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
       while (!stopAfterHand.current && nextMatch.status !== "finished") {
         controller.signal.throwIfAborted();
         setPendingReasoning(null);
+        setViewedHandId(null);
         setActiveHand(null);
         setLiveHand(null);
         setActionIndex(-1);
@@ -263,6 +266,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
     setActiveHand(null);
     setLiveHand(null);
     setPendingReasoning(null);
+    setViewedHandId(null);
     setActionIndex(-1);
     setFetching(true);
     try {
@@ -296,6 +300,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
     setRunning(false);
     setLiveHand(null);
     setPendingReasoning(null);
+    setViewedHandId(null);
     setReplaying(true);
     for (const hand of match.hands) {
       if (replayRun.current !== run) return;
@@ -325,6 +330,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
     setActiveHand(null);
     setLiveHand(null);
     setPendingReasoning(null);
+    setViewedHandId(null);
     setThinking(null);
     setActionIndex(-1);
     setReplaying(false);
@@ -332,26 +338,30 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
     setError(null);
   };
 
-  const currentAction = liveHand ? liveHand.actions.at(-1) ?? null : activeHand?.actions[actionIndex] ?? null;
+  const viewedHand = viewedHandId ? match?.hands.find((hand) => hand.id === viewedHandId) ?? null : null;
+  const displayedLiveHand = viewedHand ? null : liveHand;
+  const displayedHand = displayedLiveHand ?? viewedHand ?? activeHand;
+  const currentAction = displayedLiveHand ? displayedLiveHand.actions.at(-1) ?? null : activeHand?.actions[actionIndex] ?? null;
   const handPosition = activeHand && match ? match.hands.findIndex((hand) => hand.id === activeHand.id) : -1;
   const previousBankroll = handPosition > 0 ? match?.hands[handPosition - 1].bankroll : { jev: 500, codex: 500 };
-  const handResolved = Boolean(activeHand && actionIndex >= activeHand.actions.length - 1 && !fetching);
-  const visibleBoard = liveHand?.board ?? visibleBoardAt(activeHand, actionIndex, handResolved);
-  const displayedBankroll = liveHand?.bankroll ?? (fetching ? match?.bankroll : handResolved ? activeHand?.bankroll : previousBankroll);
-  const showingWinner = Boolean(activeHand && handResolved);
-  const visibleHandCount = activeHand
-    ? Math.max(0, activeHand.number - (handResolved ? 0 : 1))
+  const handResolved = Boolean(displayedHand && !displayedLiveHand && actionIndex >= displayedHand.actions.length - 1 && !fetching);
+  const visibleBoard = displayedLiveHand?.board ?? visibleBoardAt(displayedHand, actionIndex, handResolved);
+  const displayedBankroll = displayedLiveHand?.bankroll ?? (fetching && !viewedHand ? match?.bankroll : handResolved ? displayedHand?.bankroll : previousBankroll);
+  const showingWinner = Boolean(displayedHand && handResolved);
+  const visibleHandCount = displayedHand
+    ? Math.max(0, displayedHand.number - (handResolved ? 0 : 1))
     : match?.hands.length ?? 0;
-  const displayedHandNumber = liveHand?.number ?? (fetching ? (match?.hands.length ?? 0) + 1 : activeHand?.number ?? match?.hands.length ?? 0);
-  const displayedBlinds = activeHand && !fetching
-    ? activeHand.blinds ?? { small: 1, big: 2 }
+  const displayedHandNumber = displayedLiveHand?.number ?? (fetching && !viewedHand ? (match?.hands.length ?? 0) + 1 : displayedHand?.number ?? match?.hands.length ?? 0);
+  const displayedBlinds = displayedHand && (!fetching || viewedHand)
+    ? displayedHand.blinds ?? { small: 1, big: 2 }
     : BLINDS;
   const record = useMemo(() => match?.hands.slice(0, visibleHandCount).reduce((result, hand) => {
     if (hand.winner !== "tie") result[hand.winner] += 1;
     return result;
   }, { jev: 0, codex: 0 }) ?? { jev: 0, codex: 0 }, [match, visibleHandCount]);
   const isLive = running || fetching;
-  const tableHand = liveHand ?? activeHand;
+  const tableHand = displayedHand;
+  const displayThinking = viewedHand ? null : thinking;
 
   return (
     <main className="poker-room">
@@ -377,7 +387,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
       {match && (
         <>
           <section className="arena" aria-live="polite">
-            <PlayerSeat player="jev" model={tableHand ? tableHand.models?.jev : models.jev} hand={tableHand} bankroll={displayedBankroll?.jev ?? 500} currentAction={currentAction} winner={showingWinner && activeHand?.winner === "jev"} thinkingSince={thinking?.actor === "jev" ? thinking.startedAt : undefined} />
+            <PlayerSeat player="jev" model={tableHand ? tableHand.models?.jev : models.jev} hand={tableHand} bankroll={displayedBankroll?.jev ?? 500} currentAction={currentAction} winner={showingWinner && displayedHand?.winner === "jev"} thinkingSince={displayThinking?.actor === "jev" ? displayThinking.startedAt : undefined} />
 
             <div className="table-stage">
               <div className="table-shadow" />
@@ -388,17 +398,17 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
                   {Array.from({ length: 5 }, (_, index) => visibleBoard[index] ? <PlayingCard code={visibleBoard[index]} key={visibleBoard[index]} /> : <span className="card card-slot" key={index} />)}
                 </div>
                 <div className="table-status">
-                  {thinking ? <><span>{liveHand?.street}</span> {thinking.actor === "jev" ? "Jev" : "Codex"} is thinking</> : handResolved ? activeHand?.winningHand : currentAction ? <><span>{currentAction.street}</span> {actionLabel(currentAction)}</> : fetching ? "Dealing cards…" : liveHand ? "Hand interrupted" : "Waiting for the deal"}
+                  {displayThinking ? <><span>{displayedLiveHand?.street}</span> {displayThinking.actor === "jev" ? "Jev" : "Codex"} is thinking</> : handResolved ? displayedHand?.winningHand : currentAction ? <><span>{currentAction.street}</span> {actionLabel(currentAction)}</> : fetching && !viewedHand ? "Dealing cards…" : displayedLiveHand ? "Hand interrupted" : "Viewing hand"}
                 </div>
               </div>
             </div>
 
-            <PlayerSeat player="codex" model={tableHand ? tableHand.models?.codex : models.codex} hand={tableHand} bankroll={displayedBankroll?.codex ?? 500} currentAction={currentAction} winner={showingWinner && activeHand?.winner === "codex"} thinkingSince={thinking?.actor === "codex" ? thinking.startedAt : undefined} />
+            <PlayerSeat player="codex" model={tableHand ? tableHand.models?.codex : models.codex} hand={tableHand} bankroll={displayedBankroll?.codex ?? 500} currentAction={currentAction} winner={showingWinner && displayedHand?.winner === "codex"} thinkingSince={displayThinking?.actor === "codex" ? displayThinking.startedAt : undefined} />
           </section>
 
           <section className="match-footer">
             {tableHand && <ol ref={actionLog} className="live-actions" aria-label="Actions and decision times">
-              {(liveHand?.actions ?? activeHand?.actions.slice(0, actionIndex + 1) ?? []).map((action, index) => (
+              {(displayedLiveHand?.actions ?? activeHand?.actions.slice(0, actionIndex + 1) ?? []).map((action, index) => (
                 <Fragment key={`${tableHand.id}-${index}`}>
                   {action.reasoning?.map((summary) => <ReasoningLine key={summary.id} street={action.street} actor={action.actor} summary={summary} />)}
                   <li>
@@ -407,15 +417,16 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
                   </li>
                 </Fragment>
               ))}
-              {pendingReasoning?.handId === tableHand.id && pendingReasoning.actionIndex === (liveHand?.actions.length ?? actionIndex + 1) && pendingReasoning.summaries.map((summary) => (
+              {!viewedHand && pendingReasoning?.handId === tableHand.id && pendingReasoning.actionIndex === (displayedLiveHand?.actions.length ?? actionIndex + 1) && pendingReasoning.summaries.map((summary) => (
                 <ReasoningLine key={`pending-${summary.id}`} street={pendingReasoning.street} actor={pendingReasoning.actor} summary={summary} interrupted={!thinking && !replaying} />
               ))}
             </ol>}
             <div className="score-strip"><span><AgentLogo player="jev" /><b>{record.jev}</b></span><small>HANDS WON</small><span><b>{record.codex}</b><AgentLogo player="codex" /></span></div>
             <BankrollRail match={match} handNumber={visibleHandCount} />
             <div className="hand-ribbon" aria-label="Hand history">
+              {isLive && viewedHand && <button className="current-hand-button" onClick={() => { setViewedHandId(null); setPendingReasoning(null); }} aria-label="Show current hand">Current hand</button>}
               {match.hands.map((hand) => (
-                <button key={hand.id} className={`${activeHand?.id === hand.id ? "active" : ""} ${hand.winner}`} disabled={isLive || replaying} onClick={() => { setLiveHand(null); setPendingReasoning(null); setActiveHand(hand); setActionIndex(hand.actions.length - 1); }} aria-label={`Show hand ${hand.number}`}>
+                <button key={hand.id} className={`${(viewedHandId === hand.id || (!viewedHandId && activeHand?.id === hand.id)) ? "active" : ""} ${hand.winner}`} disabled={replaying} onClick={() => { setViewedHandId(hand.id); setPendingReasoning(null); setActiveHand(hand); setActionIndex(hand.actions.length - 1); }} aria-label={`Show hand ${hand.number}`}>
                   <span>{hand.number}</span><i>{hand.winner === "tie" ? "=" : hand.winner === "jev" ? "J" : "C"}</i>
                 </button>
               ))}

@@ -114,6 +114,7 @@ button { cursor: pointer; }
 .hand-ribbon button { flex: 0 0 38px; height: 34px; padding: 0 6px; display: flex; align-items: center; justify-content: space-between; color: #7d827e; background: transparent; border: 1px solid #252a27; border-radius: 6px; font: 700 10px/1 ui-monospace, monospace; }
 .hand-ribbon button i { font-style: normal; }.hand-ribbon button.jev i { color: var(--jev); }.hand-ribbon button.codex i { color: var(--codex); }
 .hand-ribbon button.active { color: #fff; background: #202522; border-color: #606861; }
+.hand-ribbon .current-hand-button { flex: 0 0 auto; width: auto; padding: 0 10px; color: #15120b; background: var(--gold); border-color: var(--gold); }
 .hand-ribbon button:disabled { cursor: default; }
 .finished-actions { display: flex; justify-content: center; align-items: center; gap: 9px; margin-top: 4px; }
 .replay-button { min-height: 43px; padding: 0 18px; font-size: 13px; }

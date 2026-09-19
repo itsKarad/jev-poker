@@ -1,5 +1,7 @@
+import { BLINDS } from "./poker-blinds";
+
 export const BANKROLL_STRATEGY = {
-  blindSchedule: "Blinds increase every six hands: 2/4, 3/6, 5/10, 8/16, 12/24, 18/36, 27/54, 40/80, 60/120. After hand 54, multiply the small blind by 1.5 and round to the nearest integer each level; the big blind is twice the small blind.",
+  blindSchedule: `Blinds remain fixed at $${BLINDS.small}/$${BLINDS.big} for the entire match.`,
   objective: "Maximize expected final bankroll across the whole match while minimizing avoidable losses.",
   adaptation: [
     "Choose the style that best fits the current evidence; do not rotate styles on a fixed schedule.",

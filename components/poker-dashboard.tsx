@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleStop, Play, RotateCcw, Spade, Trophy } from "lucide-react";
-import type { ActionRecord, LivePokerHand, MatchSummary, PlayerId, PokerHand, PokerMatch } from "@/lib/types";
+import type { ActionRecord, ReasoningSummary, LivePokerHand, MatchSummary, PlayerId, PokerHand, PokerMatch } from "@/lib/types";
 import { visibleBoardAt } from "@/lib/poker-visibility";
 import type { PlayerModel, PlayerModels } from "@/lib/player-models";
 import { BLINDS } from "@/lib/poker-blinds";
@@ -79,6 +79,15 @@ function actionLabel(action: ActionRecord) {
   return "checks";
 }
 
+function ReasoningLine({ street, actor, summary, interrupted = false }: {
+  street: ActionRecord["street"]; actor: PlayerId; summary: ReasoningSummary; interrupted?: boolean;
+}) {
+  return <li className="reasoning-line">
+    <span><small>{street} · {actor === "codex" ? "Codex" : "Jev"} reasoning summary{interrupted ? " · interrupted" : ""}</small>{summary.text}</span>
+    <time>{(summary.elapsedMs / 1000).toFixed(1)}s</time>
+  </li>;
+}
+
 function PlayerSeat({
   player,
   hand,
@@ -101,6 +110,7 @@ function PlayerSeat({
     <section className={`player-seat ${player} ${winner ? "is-winner" : ""}`}>
       <div className="seat-status">
         {thinkingSince !== undefined && <span className="seat-thinking"><ThinkingBubble /> Thinking <ThinkingTimer startedAt={thinkingSince} /></span>}
+        {thinkingSince === undefined && playerAction && <span key={`${hand?.id}-${currentAction?.street}-${currentAction?.action}`} className={`action-bubble ${playerAction.action}`}>{actionLabel(playerAction)}{playerAction.durationMs !== undefined && ` · ${(playerAction.durationMs / 1000).toFixed(1)}s`}</span>}
       </div>
       <div className="seat-model">{model ? <>{model.model}{model.reasoningEffort && <span>{model.reasoningEffort} reasoning</span>}</> : "Model not recorded"}</div>
       <div className="seat-logo-wrap"><AgentLogo player={player} /></div>
@@ -108,7 +118,6 @@ function PlayerSeat({
       <div className={`hole-cards ${playerAction?.action === "fold" ? "folded" : ""}`}>
         {hand ? hand.holeCards[player].map((card) => <PlayingCard code={card} key={card} />) : <><PlayingCard hidden /><PlayingCard hidden /></>}
       </div>
-      {thinkingSince === undefined && playerAction && <span key={`${hand?.id}-${currentAction?.street}-${currentAction?.action}`} className={`action-bubble ${playerAction.action}`}>{actionLabel(playerAction)}{playerAction.durationMs !== undefined && ` · ${(playerAction.durationMs / 1000).toFixed(1)}s`}</span>}
       {winner && <span className="winner-badge"><Trophy size={14} /> winner</span>}
     </section>
   );
@@ -144,11 +153,16 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
   const [fetching, setFetching] = useState(false);
   const [liveHand, setLiveHand] = useState<LivePokerHand | null>(null);
   const [thinking, setThinking] = useState<{ actor: PlayerId; startedAt: number } | null>(null);
+  const [pendingReasoning, setPendingReasoning] = useState<{ handId: string; actionIndex: number; street: ActionRecord["street"]; actor: PlayerId; summaries: ReasoningSummary[] } | null>(null);
   const [stopRequested, setStopRequested] = useState(false);
   const [replaying, setReplaying] = useState(false);
   const [activeHand, setActiveHand] = useState<PokerHand | null>(null);
   const [actionIndex, setActionIndex] = useState(-1);
   const [error, setError] = useState<string | null>(null);
+  const actionLog = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    if (actionLog.current) actionLog.current.scrollTop = actionLog.current.scrollHeight;
+  }, [pendingReasoning, liveHand?.actions.length, actionIndex]);
   const replayRun = useRef(0);
   const stopAfterHand = useRef(false);
   const activeRequest = useRef<AbortController | null>(null);
@@ -190,6 +204,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
     try {
       while (!stopAfterHand.current && nextMatch.status !== "finished") {
         controller.signal.throwIfAborted();
+        setPendingReasoning(null);
         setActiveHand(null);
         setLiveHand(null);
         setActionIndex(-1);
@@ -204,6 +219,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
           controller.signal.throwIfAborted();
           if (event.type === "complete") {
             nextMatch = event.match;
+            setPendingReasoning(null);
             setMatch(event.match);
             setActiveHand(event.hand);
             setActionIndex((event.hand?.actions.length ?? 0) - 1);
@@ -213,7 +229,11 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
             saveMatch(event.match);
           } else if (event.type !== "error") {
             setLiveHand(event.hand);
-            setThinking(event.type === "thinking" ? { actor: event.actor, startedAt: event.startedAt } : null);
+            setThinking(event.type === "thinking" || event.type === "reasoning" ? { actor: event.actor, startedAt: event.startedAt } : null);
+            setPendingReasoning(event.type === "reasoning" ? {
+              handId: event.hand.id, actionIndex: event.hand.actions.length,
+              street: event.hand.street, actor: event.actor, summaries: event.reasoning,
+            } : null);
           }
         }
         if (!stopAfterHand.current && nextMatch.status !== "finished") await wait(1050);
@@ -241,6 +261,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
     setMatch(null);
     setActiveHand(null);
     setLiveHand(null);
+    setPendingReasoning(null);
     setActionIndex(-1);
     setFetching(true);
     try {
@@ -273,6 +294,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
     replayRun.current = run;
     setRunning(false);
     setLiveHand(null);
+    setPendingReasoning(null);
     setReplaying(true);
     for (const hand of match.hands) {
       if (replayRun.current !== run) return;
@@ -281,6 +303,13 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
       await wait(REPLAY_ACTION_MS);
       for (let index = 0; index < hand.actions.length; index += 1) {
         if (replayRun.current !== run) return;
+        const action = hand.actions[index];
+        if (action.reasoning?.length) {
+          setPendingReasoning({ handId: hand.id, actionIndex: index, street: action.street, actor: action.actor, summaries: action.reasoning });
+          await wait(REPLAY_ACTION_MS * 3);
+          if (replayRun.current !== run) return;
+        }
+        setPendingReasoning(null);
         setActionIndex(index);
         await wait(REPLAY_ACTION_MS);
       }
@@ -294,6 +323,7 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
     setMatch(null);
     setActiveHand(null);
     setLiveHand(null);
+    setPendingReasoning(null);
     setThinking(null);
     setActionIndex(-1);
     setReplaying(false);
@@ -366,19 +396,25 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
           </section>
 
           <section className="match-footer">
-            {tableHand && <ol className="live-actions" aria-label="Actions and decision times">
+            {tableHand && <ol ref={actionLog} className="live-actions" aria-label="Actions and decision times">
               {(liveHand?.actions ?? activeHand?.actions.slice(0, actionIndex + 1) ?? []).map((action, index) => (
-                <li key={`${tableHand.id}-${index}`}>
-                  <span>{action.street} · {action.actor === "jev" ? "Jev" : "Codex"} {actionLabel(action)}</span>
-                  {action.durationMs !== undefined && <time>{(action.durationMs / 1000).toFixed(1)}s</time>}
-                </li>
+                <Fragment key={`${tableHand.id}-${index}`}>
+                  {action.reasoning?.map((summary) => <ReasoningLine key={summary.id} street={action.street} actor={action.actor} summary={summary} />)}
+                  <li>
+                    <span>{action.street} · {action.actor === "jev" ? "Jev" : "Codex"} {actionLabel(action)}</span>
+                    {action.durationMs !== undefined && <time>{(action.durationMs / 1000).toFixed(1)}s</time>}
+                  </li>
+                </Fragment>
+              ))}
+              {pendingReasoning?.handId === tableHand.id && pendingReasoning.actionIndex === (liveHand?.actions.length ?? actionIndex + 1) && pendingReasoning.summaries.map((summary) => (
+                <ReasoningLine key={`pending-${summary.id}`} street={pendingReasoning.street} actor={pendingReasoning.actor} summary={summary} interrupted={!thinking && !replaying} />
               ))}
             </ol>}
             <div className="score-strip"><span><AgentLogo player="jev" /><b>{record.jev}</b></span><small>HANDS WON</small><span><b>{record.codex}</b><AgentLogo player="codex" /></span></div>
             <BankrollRail match={match} handNumber={visibleHandCount} />
             <div className="hand-ribbon" aria-label="Hand history">
               {match.hands.map((hand) => (
-                <button key={hand.id} className={`${activeHand?.id === hand.id ? "active" : ""} ${hand.winner}`} disabled={isLive || replaying} onClick={() => { setLiveHand(null); setActiveHand(hand); setActionIndex(hand.actions.length - 1); }} aria-label={`Show hand ${hand.number}`}>
+                <button key={hand.id} className={`${activeHand?.id === hand.id ? "active" : ""} ${hand.winner}`} disabled={isLive || replaying} onClick={() => { setLiveHand(null); setPendingReasoning(null); setActiveHand(hand); setActionIndex(hand.actions.length - 1); }} aria-label={`Show hand ${hand.number}`}>
                   <span>{hand.number}</span><i>{hand.winner === "tie" ? "=" : hand.winner === "jev" ? "J" : "C"}</i>
                 </button>
               ))}

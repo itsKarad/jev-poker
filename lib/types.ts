@@ -19,6 +19,8 @@ export type LegalAction =
   | { action: "bet"; minAmount: number; maxAmount: number }
   | { action: "raise"; minAmount: number; maxAmount: number };
 
+export type ReasoningSummary = { id: string; text: string; elapsedMs: number };
+
 export type ActionRecord = {
   street: "preflop" | "flop" | "turn" | "river";
   actor: PlayerId;
@@ -29,6 +31,7 @@ export type ActionRecord = {
   board: string[];
   pot: number;
   durationMs?: number;
+  reasoning?: ReasoningSummary[];
 };
 
 export type PokerDecision =
@@ -100,7 +103,8 @@ export type LivePokerHand = Pick<PokerHand, "id" | "number" | "button" | "blinds
 
 export type HandProgressEvent =
   | { type: "deal" | "action"; hand: LivePokerHand }
-  | { type: "thinking"; hand: LivePokerHand; actor: PlayerId; startedAt: number };
+  | { type: "thinking"; hand: LivePokerHand; actor: PlayerId; startedAt: number }
+  | { type: "reasoning"; hand: LivePokerHand; actor: PlayerId; startedAt: number; reasoning: ReasoningSummary[] };
 
 export type HandStreamEvent = HandProgressEvent
   | { type: "complete"; match: PokerMatch; hand: PokerHand | null }

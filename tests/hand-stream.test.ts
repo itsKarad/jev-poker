@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { streamNextHand } from "../lib/hand-stream";
 import { readHandStream } from "../lib/read-hand-stream";
-import type { HandStreamEvent, PokerDecision, PokerMatch } from "../lib/types";
+import type { HandStreamEvent, PokerDecision, PokerDecisionContext, PokerMatch } from "../lib/types";
 
 function match(): PokerMatch {
   return { id: "stream", seed: "stream", requestedHands: 2, status: "ready", createdAt: "", updatedAt: "", bankroll: { jev: 500, codex: 500 }, hands: [] };
@@ -91,4 +91,83 @@ test("a truncated stream is reported as an interrupted hand", async () => {
   await assert.rejects(async () => {
     for await (const event of readHandStream(new Response("\n"))) void event;
   }, /before the hand finished/);
+});
+
+test("Codex summaries precede their matching action, persist, and never enter either player's context", async () => {
+  const initial = match();
+  const contexts: PokerDecisionContext[] = [];
+  let summaryArrived!: () => void;
+  let finishDecision!: () => void;
+  const arrived = new Promise<void>((resolve) => { summaryArrived = resolve; });
+  const release = new Promise<void>((resolve) => { finishDecision = resolve; });
+  const passive = async (context: PokerDecisionContext): Promise<PokerDecision> => {
+    contexts.push(context);
+    return { action: context.toCall ? "call" : "check", source: "model" };
+  };
+  const response = streamNextHand(initial, {
+    decideJev: passive,
+    decideCodex: async (context, _signal, onSummary) => {
+      contexts.push(context);
+      onSummary?.({ id: "r0", text: `Summary for ${context.street}` });
+      summaryArrived();
+      await release;
+      return { action: context.toCall ? "call" : "check", source: "model" };
+    },
+  }, new AbortController().signal);
+  await arrived;
+  const events = readHandStream(response);
+  const full: HandStreamEvent[] = [];
+  while (true) {
+    const { value: entry, done } = await events.next();
+    if (done) throw new Error("Stream ended before the summary");
+    full.push(entry);
+    if (entry.type === "reasoning") {
+      assert.equal(entry.hand.actions.at(-1)?.actor, "jev");
+      assert.equal(entry.reasoning[0].text, "Summary for preflop");
+      assert.equal(entry.hand.actions.length, 1);
+      break;
+    }
+  }
+  finishDecision();
+  for await (const entry of events) full.push(entry);
+  for (let index = 0; index < full.length; index++) {
+    const entry = full[index];
+    if (entry.type !== "reasoning") continue;
+    const actionEvent = full[index + 1];
+    assert.equal(actionEvent.type, "action");
+    if (actionEvent.type !== "action") throw new Error("Missing action");
+    const action = actionEvent.hand.actions.at(-1)!;
+    assert.equal(action.actor, "codex");
+    assert.equal(action.street, entry.hand.street);
+    assert.deepEqual(action.reasoning, entry.reasoning);
+    assert.ok(action.reasoning![0].elapsedMs <= action.durationMs!);
+  }
+  const complete = full.at(-1)!;
+  if (complete.type !== "complete" || !complete.hand) throw new Error("Missing completed hand");
+  assert.ok(complete.hand.actions.filter((action) => action.actor === "codex").every((action) => action.reasoning?.length === 1));
+  for await (const _entry of readHandStream(streamNextHand(complete.match, { decideJev: passive, decideCodex: passive }, new AbortController().signal))) { /* capture resumed contexts */ }
+  assert.ok(contexts.every((context) => [...context.actionHistory, ...context.recentHands.flatMap((hand) => hand.actions)].every((action) => !action.reasoning)));
+});
+
+test("a failed Codex decision leaves summaries uncommitted and ignores late callbacks", async () => {
+  const initial = match();
+  const events: HandStreamEvent[] = [];
+  let lateSummary: ((summary: { id: string; text: string }) => void) | undefined;
+  await assert.rejects(async () => {
+    const response = streamNextHand(initial, {
+      decideJev: async () => ({ action: "call", source: "model" }),
+      decideCodex: async (_context, _signal, onSummary) => {
+        lateSummary = onSummary;
+        onSummary?.({ id: "r0", text: "Evaluating the current hand." });
+        throw new Error("Decision failed");
+      },
+    }, new AbortController().signal);
+    for await (const event of readHandStream(response)) events.push(event);
+  }, /Decision failed/);
+  assert.equal(events.at(-1)?.type, "reasoning");
+  assert.ok(events.every((event) => event.type !== "action" || event.hand.actions.at(-1)?.actor !== "codex"));
+  const count = events.length;
+  assert.doesNotThrow(() => lateSummary?.({ id: "r1", text: "Too late" }));
+  assert.equal(events.length, count);
+  assert.equal(initial.hands.length, 0);
 });

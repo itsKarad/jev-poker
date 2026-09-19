@@ -51,6 +51,10 @@ Jev receives a typed choice request through OpenRouter. It selects an action, an
 
 Codex receives the same game state in a prompt and returns JSON under [`codex-action.schema.json`](./codex-action.schema.json). It must provide an exact integer target for a bet or raise. Codex runs in a read-only, ephemeral CLI session and is told not to inspect the project or use tools.
 
+When the Codex CLI emits public reasoning summaries, the app streams them in muted gray before the matching action, with elapsed decision time. These summaries stay with that action in saved history and replay. Some models or turns may emit none; the app does not expose a full private thinking trace. Summaries are excluded from both players' prompts because they can mention private cards. Interrupted decisions are labeled and never attached to a later action.
+
+Small gray labels above the logos show the configured models and Codex reasoning effort. New hands retain these settings for replay; old hands without metadata show "Model not recorded."
+
 The engine validates either response before it changes the hand. An unavailable service, malformed response, or illegal action stops the match with an error. There is no pretend opponent waiting in the wings.
 
 Defaults and optional overrides belong in `.env.local`:
@@ -96,7 +100,7 @@ The useful places to start are:
 | [`lib/player-models.ts`](./lib/player-models.ts) | Environment-backed model selection and safe defaults. |
 | [`tests/poker.test.ts`](./tests/poker.test.ts) | Rule tests for blinds, legal moves, all-ins, visibility, and chip conservation. |
 
-`lib/poker-strategy.ts` supplies advice to the model prompts. It describes a rising blind schedule, but the actual engine uses the fixed $5/$10 values in `lib/poker-blinds.ts`. The engine is the rule of record.
+`lib/poker-strategy.ts` supplies advice to the model prompts. Its blind guidance uses the same fixed $5/$10 definition as the engine.
 
 ## Checks
 

@@ -1,19 +1,26 @@
+import { createCodexEventReader, type CodexSummary } from "./codex-events";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { getPlayerModels } from "./player-models";
 import { BANKROLL_STRATEGY } from "./poker-strategy";
 import { isPokerAction, type PokerDecision, type PokerDecisionContext } from "./types";
 
-function runCodex(args: string[], prompt: string, cwd: string, signal?: AbortSignal) {
+function runCodex(args: string[], prompt: string, cwd: string, signal?: AbortSignal, onSummary?: (summary: CodexSummary) => void) {
   return new Promise<string>((resolve, reject) => {
     const child = spawn("codex", args, { cwd, signal, stdio: ["pipe", "pipe", "pipe"] });
-    let stdout = "";
+    const reader = createCodexEventReader(onSummary);
     let stderr = "";
     const timeout = setTimeout(() => {
       child.kill("SIGTERM");
       reject(new Error("Codex did not answer within 180 seconds"));
     }, 180_000);
-    child.stdout.setEncoding("utf8").on("data", (chunk: string) => { stdout += chunk; });
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+      try { reader.push(chunk); } catch (error) {
+        clearTimeout(timeout);
+        child.kill("SIGTERM");
+        reject(error);
+      }
+    });
     child.stderr.setEncoding("utf8").on("data", (chunk: string) => { stderr += chunk; });
     child.once("error", (error) => {
       clearTimeout(timeout);
@@ -21,14 +28,17 @@ function runCodex(args: string[], prompt: string, cwd: string, signal?: AbortSig
     });
     child.once("close", (code) => {
       clearTimeout(timeout);
-      if (code === 0) resolve(stdout);
+      if (code === 0) {
+        try { resolve(reader.finish()); } catch (error) { reject(error); }
+      }
       else reject(new Error(stderr.trim() || `Codex exited with status ${code}`));
     });
+    child.stdin.on("error", (error) => { clearTimeout(timeout); child.kill("SIGTERM"); reject(error); });
     child.stdin.end(prompt);
   });
 }
 
-export async function getCodexDecision(context: PokerDecisionContext, signal?: AbortSignal): Promise<PokerDecision> {
+export async function getCodexDecision(context: PokerDecisionContext, signal?: AbortSignal, onSummary?: (summary: CodexSummary) => void): Promise<PokerDecision> {
   const root = process.cwd();
   const { model, reasoningEffort: effort } = getPlayerModels().codex;
   const prompt = [
@@ -48,6 +58,11 @@ export async function getCodexDecision(context: PokerDecisionContext, signal?: A
     const stdout = await runCodex([
       "exec",
       "--ephemeral",
+      "--json",
+      "-c",
+      'model_reasoning_summary="concise"',
+      "-c",
+      "show_raw_agent_reasoning=false",
       "--skip-git-repo-check",
       "--ignore-rules",
       "--sandbox",
@@ -63,7 +78,7 @@ export async function getCodexDecision(context: PokerDecisionContext, signal?: A
       "-C",
       root,
       "-",
-    ], prompt, root, signal);
+    ], prompt, root, signal, onSummary);
     const value = JSON.parse(stdout.trim()) as { action?: string; amount?: number | null };
     if (!isPokerAction(value.action)) throw new Error(`Codex returned an illegal action: ${String(value.action)}`);
     const legal = context.legalActions.find((candidate) => candidate.action === value.action);

@@ -1,4 +1,5 @@
-import type { ActionRecord, HandProgressEvent, LegalAction, LivePokerHand, PlayerId, PokerDecision, PokerDecisionContext, PokerHand, PokerMatch, Winner } from "./types";
+import type { CodexSummary } from "./codex-events";
+import type { ActionRecord, ReasoningSummary, HandProgressEvent, LegalAction, LivePokerHand, PlayerId, PokerDecision, PokerDecisionContext, PokerHand, PokerMatch, Winner } from "./types";
 import { revealedBoard } from "./poker-visibility";
 import { BLINDS } from "./poker-blinds";
 
@@ -82,8 +83,11 @@ const HAND_NAMES = ["High card", "Pair", "Two pair", "Three of a kind", "Straigh
 
 export type PlayerDeciders = {
   decideJev: (context: PokerDecisionContext, signal?: AbortSignal) => Promise<PokerDecision>;
-  decideCodex: (context: PokerDecisionContext, signal?: AbortSignal) => Promise<PokerDecision>;
+  decideCodex: (context: PokerDecisionContext, signal?: AbortSignal, onSummary?: (summary: CodexSummary) => void) => Promise<PokerDecision>;
 };
+
+// Summaries can disclose private cards and are only for the spectator.
+const publicActions = (actions: ActionRecord[]) => actions.map(({ reasoning: _reasoning, ...action }) => action);
 
 const otherPlayer = (player: PlayerId): PlayerId => player === "jev" ? "codex" : "jev";
 
@@ -195,7 +199,7 @@ export async function playNextHand(
         currentBet,
         toCall: Math.max(0, currentBet - contributions[actor]),
         legalActions,
-        actionHistory: actions,
+        actionHistory: publicActions(actions),
         recentHands: match.hands.slice(-8).map((hand) => ({
           number: hand.number,
           winner: hand.winner,
@@ -204,14 +208,30 @@ export async function playNextHand(
             ? { [actor]: hand.holeCards[actor] }
             : hand.holeCards,
           board: revealedBoard(hand),
-          actions: hand.actions,
+          actions: publicActions(hand.actions),
         })),
       };
       const startedAt = Date.now();
       const started = performance.now();
       onEvent?.({ type: "thinking", hand: snapshot(street), actor, startedAt });
+      const reasoning: ReasoningSummary[] = [];
+      let acceptingSummaries = true;
+      const onSummary = (summary: CodexSummary) => {
+        if (!acceptingSummaries || signal?.aborted) return;
+        const entry = { ...summary, elapsedMs: Math.round(performance.now() - started) };
+        const index = reasoning.findIndex((item) => item.id === summary.id);
+        if (index < 0) reasoning.push(entry);
+        else reasoning[index] = entry;
+        onEvent?.({ type: "reasoning", hand: snapshot(street), actor, startedAt, reasoning: [...reasoning] });
+      };
+      let result: PokerDecision;
+      try {
+        result = actor === "codex" ? await decideCodex(context, signal, onSummary) : await decideJev(context, signal);
+      } finally {
+        acceptingSummaries = false;
+      }
       const decision = validateDecision(
-        actor === "codex" ? await decideCodex(context, signal) : await decideJev(context, signal),
+        result,
         legalActions,
       );
       signal?.throwIfAborted();
@@ -252,6 +272,7 @@ export async function playNextHand(
         streetTotal: contributions[actor],
         source: decision.source,
         durationMs,
+        ...(reasoning.length ? { reasoning } : {}),
         board: visible,
         pot,
       });

@@ -1,6 +1,7 @@
 import { isPokerAction, type LegalAction, type PokerDecision, type PokerDecisionContext } from "./types";
 import { getPlayerModels } from "./player-models";
 import { BANKROLL_STRATEGY } from "./poker-strategy";
+import { getJevSizingPlan, jevScoreToAmount } from "./jev-sizing";
 
 type JevResponse = {
   answers?: {
@@ -32,6 +33,7 @@ export async function getJevDecision(context: PokerDecisionContext, signal?: Abo
     return `${legal.action === "bet" ? "Open the betting" : "Increase the outstanding wager"} to any integer street total from ${legal.minAmount} through ${legal.maxAmount}.`;
   };
   const aggressiveActions = context.legalActions.filter((legal) => legal.action === "bet" || legal.action === "raise");
+  const sizingPlan = aggressiveActions[0] ? getJevSizingPlan(context, aggressiveActions[0]) : null;
   const body = {
     model,
     state: {
@@ -52,14 +54,8 @@ export async function getJevDecision(context: PokerDecisionContext, signal?: Abo
       ...(aggressiveActions.length > 0 ? {
         sizing: {
           type: "score",
-          instructions: "If choosing bet or raise, how large should the exact legal target amount be within that action's supplied minAmount-to-maxAmount range? Optimize expected final bankroll and include value bets, pressure, and selective bluffs. This answer is ignored for other actions.",
-          criteria: [
-            "Minimum legal size",
-            "Small size near one quarter of the legal range",
-            "Medium size near half of the legal range",
-            "Large size near three quarters of the legal range",
-            "Maximum legal size",
-          ],
+          instructions: "If choosing bet or raise, choose the target amount using these five poker-sized anchors. Score 0 selects the first anchor and score 4 selects the last. Intermediate scores interpolate between adjacent anchors. Optimize expected final bankroll; use larger sizes for value, protection, or credible pressure, and do not choose the maximum merely because it is available. This answer is ignored for other actions.",
+          criteria: sizingPlan?.labels ?? [],
         },
       } : {}),
     },
@@ -98,8 +94,7 @@ export async function getJevDecision(context: PokerDecisionContext, signal?: Abo
       if (!("minAmount" in legal)) throw new Error(`OpenRouter Jev returned invalid sizing action: ${action}`);
       const score = result.answers?.sizing?.score;
       if (typeof score !== "number" || !Number.isFinite(score)) throw new Error("OpenRouter Jev did not return a wager size");
-      const ratio = Math.max(0, Math.min(4, score)) / 4;
-      const amount = Math.round(legal.minAmount + ratio * (legal.maxAmount - legal.minAmount));
+      const amount = jevScoreToAmount(score, getJevSizingPlan(context, legal));
       return { action, amount, source: "model" };
     }
     if (action === "check" || action === "call" || action === "fold" || action === "all_in") {

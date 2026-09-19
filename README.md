@@ -47,7 +47,7 @@ A `bet` or `raise` amount is the player's total contribution on that street, not
 
 Both adapters receive a decision context with the current board, their own hole cards, stacks, pot, street contributions, amount to call, legal actions, prior actions, and up to eight recent hands. A folded hand only exposes to a player what that player could have known at the time.
 
-Jev receives a typed choice request through OpenRouter. It selects an action, and, for a bet or raise, scores a size from minimum to maximum. The adapter converts that score to a legal integer target.
+Jev receives a typed choice request through OpenRouter. It selects an action, and, for a bet or raise, scores one of five poker-sized anchors. Preflop anchors use blind or raise multiples; postflop anchors use pot fractions. The adapter interpolates between those anchors and converts the result to a legal integer target.
 
 Codex receives the same game state in a prompt and returns JSON under [`codex-action.schema.json`](./codex-action.schema.json). It must provide an exact integer target for a bet or raise. Codex runs in a read-only, ephemeral CLI session and is told not to inspect the project or use tools.
 

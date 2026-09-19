@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleStop, Play, RotateCcw, Spade, Trophy } from "lucide-react";
 import type { ActionRecord, LivePokerHand, MatchSummary, PlayerId, PokerHand, PokerMatch } from "@/lib/types";
 import { visibleBoardAt } from "@/lib/poker-visibility";
+import type { PlayerModel, PlayerModels } from "@/lib/player-models";
 import { BLINDS } from "@/lib/poker-blinds";
 import { readHandStream } from "@/lib/read-hand-stream";
 
@@ -85,6 +86,7 @@ function PlayerSeat({
   currentAction,
   winner,
   thinkingSince,
+  model,
 }: {
   player: PlayerId;
   hand: Pick<PokerHand, "id" | "holeCards"> | null;
@@ -92,16 +94,20 @@ function PlayerSeat({
   currentAction: ActionRecord | null;
   winner: boolean;
   thinkingSince?: number;
+  model?: PlayerModel;
 }) {
   const playerAction = currentAction?.actor === player ? currentAction : null;
   return (
     <section className={`player-seat ${player} ${winner ? "is-winner" : ""}`}>
+      <div className="seat-status">
+        {thinkingSince !== undefined && <span className="seat-thinking"><ThinkingBubble /> Thinking <ThinkingTimer startedAt={thinkingSince} /></span>}
+      </div>
+      <div className="seat-model">{model ? <>{model.model}{model.reasoningEffort && <span>{model.reasoningEffort} reasoning</span>}</> : "Model not recorded"}</div>
       <div className="seat-logo-wrap"><AgentLogo player={player} /></div>
       <div className="seat-stack"><strong>${bankroll}</strong><span>bankroll</span></div>
       <div className={`hole-cards ${playerAction?.action === "fold" ? "folded" : ""}`}>
         {hand ? hand.holeCards[player].map((card) => <PlayingCard code={card} key={card} />) : <><PlayingCard hidden /><PlayingCard hidden /></>}
       </div>
-      {thinkingSince !== undefined && <span className="action-bubble"><ThinkingBubble /> Thinking <ThinkingTimer startedAt={thinkingSince} /></span>}
       {thinkingSince === undefined && playerAction && <span key={`${hand?.id}-${currentAction?.street}-${currentAction?.action}`} className={`action-bubble ${playerAction.action}`}>{actionLabel(playerAction)}{playerAction.durationMs !== undefined && ` · ${(playerAction.durationMs / 1000).toFixed(1)}s`}</span>}
       {winner && <span className="winner-badge"><Trophy size={14} /> winner</span>}
     </section>
@@ -130,7 +136,7 @@ function BankrollRail({ match, handNumber }: { match: PokerMatch | null; handNum
   );
 }
 
-export function PokerDashboard() {
+export function PokerDashboard({ models }: { models: PlayerModels }) {
   const [matches, setMatches] = useState<MatchSummary[]>([]);
   const [match, setMatch] = useState<PokerMatch | null>(null);
   const [hands, setHands] = useState(20);
@@ -340,7 +346,7 @@ export function PokerDashboard() {
       {match && (
         <>
           <section className="arena" aria-live="polite">
-            <PlayerSeat player="jev" hand={tableHand} bankroll={displayedBankroll?.jev ?? 500} currentAction={currentAction} winner={showingWinner && activeHand?.winner === "jev"} thinkingSince={thinking?.actor === "jev" ? thinking.startedAt : undefined} />
+            <PlayerSeat player="jev" model={tableHand ? tableHand.models?.jev : models.jev} hand={tableHand} bankroll={displayedBankroll?.jev ?? 500} currentAction={currentAction} winner={showingWinner && activeHand?.winner === "jev"} thinkingSince={thinking?.actor === "jev" ? thinking.startedAt : undefined} />
 
             <div className="table-stage">
               <div className="table-shadow" />
@@ -356,7 +362,7 @@ export function PokerDashboard() {
               </div>
             </div>
 
-            <PlayerSeat player="codex" hand={tableHand} bankroll={displayedBankroll?.codex ?? 500} currentAction={currentAction} winner={showingWinner && activeHand?.winner === "codex"} thinkingSince={thinking?.actor === "codex" ? thinking.startedAt : undefined} />
+            <PlayerSeat player="codex" model={tableHand ? tableHand.models?.codex : models.codex} hand={tableHand} bankroll={displayedBankroll?.codex ?? 500} currentAction={currentAction} winner={showingWinner && activeHand?.winner === "codex"} thinkingSince={thinking?.actor === "codex" ? thinking.startedAt : undefined} />
           </section>
 
           <section className="match-footer">

@@ -154,7 +154,7 @@ export async function playNextHand(
   const visibleCards = (street: ActionRecord["street"]) => street === "preflop" ? [] : street === "flop" ? board.slice(0, 3) : street === "turn" ? board.slice(0, 4) : board;
   let foldedWinner: PlayerId | null = null;
   const snapshot = (street: ActionRecord["street"]): LivePokerHand => ({
-    id: `${match.id}-${number}`, number, button, blinds, holeCards,
+    id: `${match.id}-${number}`, number, button, blinds, models: match.models, holeCards,
     street, board: visibleCards(street), actions: [...actions], pot, bankroll: { ...bankroll },
   });
   onEvent?.({ type: "deal", hand: snapshot("preflop") });
@@ -283,6 +283,7 @@ export async function playNextHand(
     id: `${match.id}-${number}`,
     number,
     playedAt: new Date().toISOString(),
+    models: match.models,
     button,
     blinds,
     holeCards,

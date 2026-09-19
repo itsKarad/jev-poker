@@ -1,4 +1,5 @@
 import { isPokerAction, type LegalAction, type PokerDecision, type PokerDecisionContext } from "./types";
+import { getPlayerModels } from "./player-models";
 import { BANKROLL_STRATEGY } from "./poker-strategy";
 
 type JevResponse = {
@@ -22,7 +23,7 @@ export async function getJevDecision(context: PokerDecisionContext, signal?: Abo
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
 
-  const model = process.env.OPENROUTER_MODEL || "~typesafe/jev-latest";
+  const model = getPlayerModels().jev.model;
   const describeAction = (legal: LegalAction) => {
     if (legal.action === "check") return "Continue without adding chips; legal only when nothing is owed.";
     if (legal.action === "fold") return "Surrender the hand rather than match the outstanding wager.";

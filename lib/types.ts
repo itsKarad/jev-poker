@@ -1,3 +1,4 @@
+import type { PlayerModels } from "./player-models";
 import type { Blinds } from "./poker-blinds";
 
 export type PlayerId = "jev" | "codex";
@@ -71,6 +72,7 @@ export type PokerHand = {
   button: PlayerId;
   // Older saved hands used fixed $1/$2 blinds.
   blinds?: Blinds;
+  models?: PlayerModels;
   holeCards: Record<PlayerId, string[]>;
   board: string[];
   actions: ActionRecord[];
@@ -89,9 +91,10 @@ export type PokerMatch = {
   updatedAt: string;
   bankroll: Record<PlayerId, number>;
   hands: PokerHand[];
+  models?: PlayerModels;
 };
 
-export type LivePokerHand = Pick<PokerHand, "id" | "number" | "button" | "blinds" | "holeCards" | "board" | "actions" | "pot" | "bankroll"> & {
+export type LivePokerHand = Pick<PokerHand, "id" | "number" | "button" | "blinds" | "models" | "holeCards" | "board" | "actions" | "pot" | "bankroll"> & {
   street: ActionRecord["street"];
 };
 

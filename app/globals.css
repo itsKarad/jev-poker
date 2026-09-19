@@ -65,6 +65,10 @@ button { cursor: pointer; }
 .table-status > span:first-child:not(.thinking-bubble) { color: #f4e3b3; }
 
 .player-seat { min-width: 0; position: relative; display: grid; justify-items: center; gap: 12px; }
+.seat-status { min-height: 31px; display: flex; align-items: center; justify-content: center; }
+.seat-thinking { display: flex; align-items: center; gap: 6px; color: #a5aaa7; font-size: 11px; white-space: nowrap; }
+.seat-model { min-height: 30px; max-width: 100%; color: #969c99; font: 10px/1.5 ui-monospace, monospace; text-align: center; overflow-wrap: anywhere; }
+.seat-model span { display: block; }
 .seat-logo-wrap { position: relative; width: clamp(72px, 8vw, 112px); aspect-ratio: 1; display: grid; place-items: center; }
 .agent-logo { display: inline-grid; place-items: center; flex: 0 0 auto; overflow: hidden; border-radius: 50%; }
 .seat-logo-wrap .agent-logo { width: 100%; height: 100%; box-shadow: 0 16px 32px rgba(0,0,0,.45); }
@@ -84,7 +88,7 @@ button { cursor: pointer; }
 .thinking-bubble { min-width: 48px; height: 27px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid rgba(255,255,255,.15); border-radius: 15px; background: #171a19; }
 .thinking-bubble i { width: 4px; height: 4px; border-radius: 50%; background: #d8d5cc; animation: dot 1s ease-in-out infinite; }
 .thinking-bubble i:nth-child(2) { animation-delay: .14s; }.thinking-bubble i:nth-child(3) { animation-delay: .28s; }
-.action-bubble { position: absolute; top: 27%; z-index: 5; min-width: 92px; padding: 10px 13px; color: #111; background: #f2ead5; border-radius: 7px; box-shadow: 0 10px 24px rgba(0,0,0,.35); text-align: center; text-transform: uppercase; font-size: 11px; font-weight: 900; letter-spacing: .08em; animation: actionPop .5s cubic-bezier(.2,.9,.2,1) both; }
+.action-bubble { position: absolute; top: 57%; z-index: 5; min-width: 92px; padding: 10px 13px; color: #111; background: #f2ead5; border-radius: 7px; box-shadow: 0 10px 24px rgba(0,0,0,.35); text-align: center; text-transform: uppercase; font-size: 11px; font-weight: 900; letter-spacing: .08em; animation: actionPop .5s cubic-bezier(.2,.9,.2,1) both; }
 .player-seat.jev .action-bubble { right: -12%; }.player-seat.codex .action-bubble { left: -12%; }
 .action-bubble.raise, .action-bubble.bet, .action-bubble.all_in { color: #fff; background: #bd3337; }.action-bubble.fold { color: #fff; background: #343938; }.action-bubble.call { background: var(--gold); }
 .winner-badge { position: absolute; top: -27px; display: flex; align-items: center; gap: 6px; color: #f3cd77; text-transform: uppercase; font-size: 10px; font-weight: 900; letter-spacing: .12em; animation: winnerIn .5s ease both; }
@@ -145,7 +149,7 @@ button { cursor: pointer; }
   .seat-logo-wrap { width: 64px; }
   .hole-cards { height: 70px; }
   .hole-cards .card { width: 43px; }
-  .action-bubble { top: 8%; }
+  .action-bubble { top: 54%; }
   .player-seat.jev .action-bubble { right: 1%; }.player-seat.codex .action-bubble { left: 1%; }
   .winner-badge { top: -18px; }
   .match-footer { width: calc(100% - 24px); }

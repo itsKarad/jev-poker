@@ -1,10 +1,8 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { getPlayerModels } from "./player-models";
 import { BANKROLL_STRATEGY } from "./poker-strategy";
 import { isPokerAction, type PokerDecision, type PokerDecisionContext } from "./types";
-
-const allowedModels = new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"]);
-const allowedEfforts = new Set(["low", "medium", "high", "xhigh", "max"]);
 
 function runCodex(args: string[], prompt: string, cwd: string, signal?: AbortSignal) {
   return new Promise<string>((resolve, reject) => {
@@ -32,10 +30,7 @@ function runCodex(args: string[], prompt: string, cwd: string, signal?: AbortSig
 
 export async function getCodexDecision(context: PokerDecisionContext, signal?: AbortSignal): Promise<PokerDecision> {
   const root = process.cwd();
-  const requestedModel = process.env.CODEX_MODEL ?? "gpt-5.6-luna";
-  const requestedEffort = process.env.CODEX_REASONING_EFFORT ?? "medium";
-  const model = allowedModels.has(requestedModel) ? requestedModel : "gpt-5.6-luna";
-  const effort = allowedEfforts.has(requestedEffort) ? requestedEffort : "medium";
+  const { model, reasoningEffort: effort } = getPlayerModels().codex;
   const prompt = [
     "You are Codex playing heads-up Texas Hold'em.",
     "Choose the legal action with the best expected effect on your final bankroll across the whole match. Every action in state.legalActions is available.",

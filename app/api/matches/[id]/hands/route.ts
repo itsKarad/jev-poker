@@ -1,3 +1,4 @@
+import { getPlayerModels } from "@/lib/player-models";
 import { NextResponse } from "next/server";
 import { streamNextHand } from "@/lib/hand-stream";
 import { getCodexDecision } from "@/lib/codex-player";
@@ -15,7 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!match || match.id !== id || !Array.isArray(match.hands)) {
       return NextResponse.json({ error: "Invalid match state" }, { status: 400 });
     }
-    return streamNextHand(match, {
+    return streamNextHand({ ...match, models: getPlayerModels() }, {
       decideJev: getJevDecision,
       decideCodex: getCodexDecision,
     }, request.signal);

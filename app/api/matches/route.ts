@@ -1,3 +1,4 @@
+import { getPlayerModels } from "@/lib/player-models";
 import { NextResponse } from "next/server";
 import type { PokerMatch } from "@/lib/types";
 
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
       updatedAt: now,
       bankroll: { jev: 500, codex: 500 },
       hands: [],
+      models: getPlayerModels(),
     };
     return NextResponse.json({ match }, { status: 201 });
   } catch (error) {

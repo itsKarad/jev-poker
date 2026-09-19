@@ -124,9 +124,14 @@ function PlayerSeat({
   );
 }
 
-function BankrollRail({ match, handNumber }: { match: PokerMatch | null; handNumber: number }) {
-  const points = [{ jev: 500, codex: 500 }, ...(match?.hands.slice(0, handNumber).map((hand) => hand.bankroll) ?? [])];
-  const width = 620;
+function BankrollRail({ match, onSelectHand, disabled = false }: {
+  match: PokerMatch | null;
+  onSelectHand: (hand: PokerHand) => void;
+  disabled?: boolean;
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const points = [{ jev: 500, codex: 500 }, ...(match?.hands.map((hand) => hand.bankroll) ?? [])];
+  const width = Math.max(620, points.length * 28);
   const height = 58;
   const values = points.flatMap((point) => [point.jev, point.codex]);
   const min = Math.min(...values, 490) - 4;
@@ -134,14 +139,64 @@ function BankrollRail({ match, handNumber }: { match: PokerMatch | null; handNum
   const x = (index: number) => 4 + index * (width - 8) / Math.max(1, points.length - 1);
   const y = (value: number) => 4 + (max - value) * (height - 8) / Math.max(1, max - min);
   const line = (player: PlayerId) => points.map((point, index) => `${x(index)},${y(point[player])}`).join(" ");
+  const hoveredPoint = hoveredIndex === null ? null : points[hoveredIndex];
+  const hoveredHand = hoveredIndex && hoveredIndex > 0 ? match?.hands[hoveredIndex - 1] : null;
+  const selectPoint = (index: number) => {
+    const hand = index > 0 ? match?.hands[index - 1] : null;
+    if (!disabled && hand) onSelectHand(hand);
+  };
+  const selectHoveredHand = () => { if (hoveredIndex !== null) selectPoint(hoveredIndex); };
   return (
     <div className="bankroll-rail" aria-label="Bankroll throughout the match">
       <div className="rail-labels"><span><i className="jev-swatch" />${points.at(-1)?.jev}</span><small>bankroll</small><span><i className="codex-swatch" />${points.at(-1)?.codex}</span></div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Bankroll graph">
-        <line x1="4" y1={y(500)} x2={width - 4} y2={y(500)} />
-        <polyline points={line("jev")} className="jev-line" />
-        <polyline points={line("codex")} className="codex-line" />
-      </svg>
+      <div className="bankroll-scroll" onPointerLeave={() => setHoveredIndex(null)}>
+        <div className="bankroll-chart" style={{ width }}>
+          <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Bankroll graph">
+            <line x1="4" y1={y(500)} x2={width - 4} y2={y(500)} />
+            <polyline points={line("jev")} className="jev-line" />
+            <polyline points={line("codex")} className="codex-line" />
+            {points.map((point, index) => (
+              <g key={index}>
+                {hoveredIndex === index && <line x1={x(index)} y1="3" x2={x(index)} y2={height - 3} className="rail-hover-line" />}
+                <circle cx={x(index)} cy={y(point.jev)} r={hoveredIndex === index ? 4 : 2.5} className="jev-point" />
+                <circle cx={x(index)} cy={y(point.codex)} r={hoveredIndex === index ? 4 : 2.5} className="codex-point" />
+                <rect
+                  x={Math.max(0, x(index) - 14)}
+                  y="0"
+                  width="28"
+                  height={height}
+                  className="rail-hit-area"
+                  role="button"
+                  tabIndex={disabled ? -1 : 0}
+                  aria-label={index === 0 ? "Starting bankroll: Jev $500, Codex $500" : `Hand ${index}: Jev $${point.jev}, Codex $${point.codex}`}
+                  onPointerEnter={() => setHoveredIndex(index)}
+                  onFocus={() => setHoveredIndex(index)}
+                  onBlur={() => setHoveredIndex(null)}
+                  onClick={() => {
+                    setHoveredIndex(index);
+                    selectPoint(index);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setHoveredIndex(index);
+                      selectPoint(index);
+                    }
+                  }}
+                />
+              </g>
+            ))}
+          </svg>
+          {hoveredPoint && (
+            <div className="bankroll-tooltip" style={{ left: `${(x(hoveredIndex ?? 0) / width) * 100}%` }}>
+              <div className="bankroll-tooltip-title">{hoveredHand ? `Hand ${hoveredHand.number}` : "Starting stack"}</div>
+              <div><span className="jev-tooltip-dot" />Jev <strong>${hoveredPoint.jev}</strong></div>
+              <div><span className="codex-tooltip-dot" />Codex <strong>${hoveredPoint.codex}</strong></div>
+              {hoveredHand && <button type="button" disabled={disabled} onClick={selectHoveredHand}>View hand</button>}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -362,6 +417,12 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
   const isLive = running || fetching;
   const tableHand = displayedLiveHand ?? displayedHand;
   const displayThinking = viewedHand ? null : thinking;
+  const selectHand = useCallback((hand: PokerHand) => {
+    setViewedHandId(hand.id);
+    setPendingReasoning(null);
+    setActiveHand(hand);
+    setActionIndex(hand.actions.length - 1);
+  }, []);
 
   return (
     <main className="poker-room">
@@ -422,11 +483,11 @@ export function PokerDashboard({ models }: { models: PlayerModels }) {
               ))}
             </ol>}
             <div className="score-strip"><span><AgentLogo player="jev" /><b>{record.jev}</b></span><small>HANDS WON</small><span><b>{record.codex}</b><AgentLogo player="codex" /></span></div>
-            <BankrollRail match={match} handNumber={visibleHandCount} />
+            <BankrollRail match={match} onSelectHand={selectHand} disabled={replaying} />
             <div className="hand-ribbon" aria-label="Hand history">
               {isLive && viewedHand && <button className="current-hand-button" onClick={() => { setViewedHandId(null); setPendingReasoning(null); }} aria-label="Show current hand">Current hand</button>}
               {match.hands.map((hand) => (
-                <button key={hand.id} className={`${(viewedHandId === hand.id || (!viewedHandId && activeHand?.id === hand.id)) ? "active" : ""} ${hand.winner}`} disabled={replaying} onClick={() => { setViewedHandId(hand.id); setPendingReasoning(null); setActiveHand(hand); setActionIndex(hand.actions.length - 1); }} aria-label={`Show hand ${hand.number}`}>
+                <button key={hand.id} className={`${(viewedHandId === hand.id || (!viewedHandId && activeHand?.id === hand.id)) ? "active" : ""} ${hand.winner}`} disabled={replaying} onClick={() => selectHand(hand)} aria-label={`Show hand ${hand.number}`}>
                   <span>{hand.number}</span><i>{hand.winner === "tie" ? "=" : hand.winner === "jev" ? "J" : "C"}</i>
                 </button>
               ))}

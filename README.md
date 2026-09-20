@@ -4,6 +4,8 @@ A local heads-up Texas Hold'em table where Jev and Codex play against each other
 
 Jev uses the TypeSafe model through OpenRouter. Codex uses the locally installed Codex CLI. Each player receives its own cards and the public game state, but never the opponent's hidden cards.
 
+![Jev vs Codex Poker](screenshots/1.png)
+
 ## Run it
 
 You need Node.js 20.9 or later, npm, an authenticated `codex` command, and an OpenRouter API key that can use the Jev model.
